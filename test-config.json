@@ -1,0 +1,125 @@
+{
+    "necessary": {
+        "label": "Cookies essentiels",
+        "description": "Ces cookies sont nécessaires au bon fonctionnement du site (sécurité, navigation, sessions).",
+        "required": true,
+        "cookies": [{
+                "name": "session_id",
+                "domain": "mon-site.fr",
+                "path": "/",
+                "expires": "session",
+                "secure": true,
+                "httpOnly": true,
+                "sameSite": "Strict"
+            },
+            {
+                "name": "XSRF-TOKEN",
+                "secure": true,
+                "httpOnly": true
+            }
+        ],
+        "scripts": []
+    },
+
+    "analytics": {
+        "label": "Statistiques",
+        "description": "Ces cookies nous permettent d’analyser le trafic et d’améliorer l’expérience utilisateur.",
+        "required": false,
+        "cookies": [{
+                "name": "_ga",
+                "domain": ".mon-site.fr",
+                "expires": 63072000,
+                "secure": true,
+                "consentType": "analytics_storage"
+            },
+            {
+                "name": "_gid",
+                "domain": ".mon-site.fr",
+                "expires": 86400,
+                "secure": true,
+                "consentType": "analytics_storage"
+            },
+            {
+                "name": "_gat",
+                "domain": ".mon-site.fr",
+                "expires": 60,
+                "secure": true,
+                "consentType": "analytics_storage"
+            }
+        ],
+        "scripts": [{
+                "src": "https://www.googletagmanager.com/gtag/js?id=UA-XXXXXXXXX",
+                "defer": true
+            },
+            {
+                "inline": "window.dataLayer = window.dataLayer || [];\nfunction gtag(){dataLayer.push(arguments);}\ngtag('js', new Date());\ngtag('config', 'UA-XXXXXXXXX', { anonymize_ip: true });"
+            }
+        ]
+    },
+
+    "marketing": {
+        "label": "Marketing",
+        "description": "Ces cookies sont utilisés pour personnaliser la publicité et mesurer les performances des campagnes.",
+        "required": false,
+        "cookies": [{
+                "name": "_gcl_au",
+                "domain": ".mon-site.fr",
+                "expires": 7776000,
+                "secure": true,
+                "consentType": "ad_storage"
+            },
+            {
+                "name": "IDE",
+                "domain": ".doubleclick.net",
+                "expires": 31536000,
+                "secure": true,
+                "consentType": "ad_storage"
+            },
+            {
+                "name": "test_cookie",
+                "domain": ".doubleclick.net",
+                "expires": 7776000,
+                "secure": true,
+                "consentType": "ad_storage"
+            }
+        ],
+        "scripts": [{
+                "src": "https://www.googletagmanager.com/gtag/js?id=AW-XXXXXXXXX",
+                "defer": true
+            },
+            {
+                "inline": "window.dataLayer = window.dataLayer || [];\nfunction gtag(){dataLayer.push(arguments);}\ngtag('js', new Date());\ngtag('config', 'AW-XXXXXXXXX');"
+            }
+        ]
+    },
+
+    "preferences": {
+        "label": "Préférences",
+        "description": "Ces cookies permettent de mémoriser vos choix (langue, thème, etc.) pour personnaliser votre expérience.",
+        "required": false,
+        "cookies": [{
+                "name": "consent_lang",
+                "domain": "mon-site.fr",
+                "expires": 2592000,
+                "secure": true,
+                "consentType": "personalization_storage"
+            },
+            {
+                "name": "consent_theme",
+                "domain": "mon-site.fr",
+                "expires": 2592000,
+                "secure": true,
+                "consentType": "personalization_storage"
+            }
+        ],
+        "scripts": []
+    },
+
+    "external_iframes": {
+        "label": "Contenus externes",
+        "description": "Les iframes externes (YouTube, Google Maps, etc.) peuvent déposer des cookies tiers.",
+        "required": false,
+        "cookies": [],
+        "scripts": []
+    }
+}
