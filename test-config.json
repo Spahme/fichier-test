@@ -1,4 +1,9 @@
-{
+{    
+    "info": {
+        "version": "1.2.3",
+        "copyrigh": "Agacom"
+    },
+    
     "necessary": {
         "label": "Cookies essentiels",
         "description": "Ces cookies sont nécessaires au bon fonctionnement du site (sécurité, navigation, sessions).",
