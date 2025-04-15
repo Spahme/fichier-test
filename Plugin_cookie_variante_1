@@ -1,0 +1,135 @@
+<?php
+/*
+Plugin Name: Cookie Consent Manager
+Description: Gère les cookies et affiche une bannière de consentement RGPD avec shortcodes et injection conditionnelle.
+Version: 1.0.0
+Author: Sasha
+*/
+
+/*******************************************************************************************
+ * FRONT-END : Chargement des scripts de consentement et passage des paramètres au JS
+ *******************************************************************************************/
+add_action('wp_enqueue_scripts', function() {
+  wp_enqueue_style('ccm-style', plugin_dir_url(__FILE__) . 'assets/cookie-banner.css');
+  wp_enqueue_script('ccm-script', plugin_dir_url(__FILE__) . 'assets/cookie-manager.js', [], null, true);
+
+  wp_localize_script('ccm-script', 'CCM_Settings', [
+    'version' => get_option('ccm_config')['version'] ?? '1.0.0',
+    'texts' => get_option('ccm_texts', [
+      'title' => 'Gestion des cookies',
+      'description' => 'Nous utilisons des cookies pour optimiser notre site et nos services.',
+      'accept' => 'Tout accepter',
+      'custom' => 'Personnaliser',
+      'refuse' => 'Tout refuser'
+    ])
+  ]);
+});
+
+/*******************************************************************************************
+ * BACK-END : Hooks PHP déclenchés selon le consentement utilisateur (injection dans <head>)
+ *******************************************************************************************/
+add_action('wp_head', function() {
+  if (isset($_COOKIE['cookieConsent'])) {
+    $consent = json_decode(stripslashes($_COOKIE['cookieConsent']), true);
+    $config = get_option('ccm_config', []);
+    foreach ($config['categories'] ?? [] as $key => $cat) {
+      if (!empty($consent[$key])) {
+        foreach ($cat['scripts'] ?? [] as $src) {
+          echo "<script src='" . esc_url($src) . "'></script>\n";
+        }
+        foreach ($cat['hooks'] ?? [] as $hook) {
+          do_action($hook);
+        }
+      }
+    }
+  }
+});
+
+/*******************************************************************************************
+ * SHORTCODE : Affichage conditionnel selon consentement via [cookie_if category="x"]
+ *******************************************************************************************/
+add_shortcode('cookie_if', function($atts, $content = null) {
+  $atts = shortcode_atts(['category' => ''], $atts);
+  $cookie = $_COOKIE['cookieConsent'] ?? '{}';
+  $consent = json_decode(stripslashes($cookie), true);
+  if (!empty($consent[$atts['category']])) {
+    return do_shortcode($content);
+  }
+  return '';
+});
+
+/*******************************************************************************************
+ * BACK-OFFICE : Page de configuration admin (bannière, scripts, hooks, version)
+ *******************************************************************************************/
+add_action('admin_menu', function() {
+  add_menu_page('Cookie Manager', 'Gestion Cookies', 'manage_options', 'ccm-settings', 'ccm_render_settings_page', 'dashicons-shield-alt');
+});
+
+function ccm_render_settings_page() {
+  $config = get_option('ccm_config', [
+    'version' => '1.0.0',
+    'categories' => [
+      'analytics' => ['label' => 'Statistiques', 'scripts' => [], 'hooks' => []],
+      'marketing' => ['label' => 'Publicité', 'scripts' => [], 'hooks' => []]
+    ]
+  ]);
+  $texts = get_option('ccm_texts', [
+    'title' => 'Gestion des cookies',
+    'description' => 'Nous utilisons des cookies pour optimiser notre site et nos services.',
+    'accept' => 'Tout accepter',
+    'custom' => 'Personnaliser',
+    'refuse' => 'Tout refuser'
+  ]);
+
+  if (isset($_POST['ccm_submit'])) {
+    $config['version'] = sanitize_text_field($_POST['ccm_version']);
+    foreach ($config['categories'] as $key => &$cat) {
+      $cat['label'] = sanitize_text_field($_POST["label_$key"]);
+      $cat['scripts'] = array_filter(array_map('esc_url_raw', explode("\n", $_POST["scripts_$key"])));
+      $cat['hooks'] = array_filter(array_map('sanitize_text_field', explode("\n", $_POST["hooks_$key"])));
+    }
+    update_option('ccm_config', $config);
+
+    $texts = [
+      'title' => sanitize_text_field($_POST['text_title']),
+      'description' => sanitize_textarea_field($_POST['text_description']),
+      'accept' => sanitize_text_field($_POST['text_accept']),
+      'custom' => sanitize_text_field($_POST['text_custom']),
+      'refuse' => sanitize_text_field($_POST['text_refuse'])
+    ];
+    update_option('ccm_texts', $texts);
+
+    echo '<div class="updated"><p>Configuration mise à jour.</p></div>';
+  }
+  ?>
+  <div class="wrap">
+    <h1>Cookie Consent Manager</h1>
+    <form method="post">
+      <h2>Version de consentement</h2>
+      <input type="text" name="ccm_version" value="<?= esc_attr($config['version']) ?>" required />
+
+      <h2>Textes de la bannière</h2>
+      <label>Titre :</label><br>
+      <input type="text" name="text_title" value="<?= esc_attr($texts['title']) ?>" size="80" /><br><br>
+      <label>Description :</label><br>
+      <textarea name="text_description" rows="3" cols="80"><?= esc_textarea($texts['description']) ?></textarea><br><br>
+      <label>Bouton accepter :</label> <input type="text" name="text_accept" value="<?= esc_attr($texts['accept']) ?>" /><br>
+      <label>Bouton personnaliser :</label> <input type="text" name="text_custom" value="<?= esc_attr($texts['custom']) ?>" /><br>
+      <label>Bouton refuser :</label> <input type="text" name="text_refuse" value="<?= esc_attr($texts['refuse']) ?>" /><br><br>
+
+      <h2>Catégories de cookies</h2>
+      <?php foreach ($config['categories'] as $key => $cat): ?>
+        <h3><?= ucfirst($key) ?></h3>
+        <label>Nom affiché :</label><br>
+        <input type="text" name="label_<?= $key ?>" value="<?= esc_attr($cat['label']) ?>" /><br><br>
+        <label>Scripts à injecter (un par ligne) :</label><br>
+        <textarea name="scripts_<?= $key ?>" rows="5" cols="80"><?= esc_textarea(implode("\n", $cat['scripts'])) ?></textarea><br><br>
+        <label>Hooks PHP à exécuter (un par ligne) :</label><br>
+        <textarea name="hooks_<?= $key ?>" rows="3" cols="80"><?= esc_textarea(implode("\n", $cat['hooks'] ?? [])) ?></textarea><br><br>
+      <?php endforeach; ?>
+
+      <input type="submit" name="ccm_submit" value="Enregistrer" class="button button-primary" />
+    </form>
+  </div>
+  <?php
+}
