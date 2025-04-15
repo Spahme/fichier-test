@@ -1,0 +1,132 @@
+<?php
+/*
+Plugin Name: Cookie Consent Manager
+Description: Gère les cookies et affiche une bannière de consentement RGPD avec configuration centralisée en JSON.
+Version: 1.0.0
+Author: Sasha
+*/
+
+/*******************************************************************************************
+ * API JSON CENTRALISÉE : expose la configuration via l'API REST (pour usage JS externe)
+ *******************************************************************************************/
+add_action('rest_api_init', function() {
+  register_rest_route('ccm/v1', '/config', [
+    'methods' => 'GET',
+    'callback' => function() {
+      $config = get_option('ccm_config', []);
+      $texts = get_option('ccm_texts', []);
+
+      return [
+        'version' => $config['version'] ?? '1.0.0',
+        'categories' => $config['categories'] ?? [],
+        'texts' => $texts
+      ];
+    },
+    'permission_callback' => '__return_true'
+  ]);
+});
+
+/*******************************************************************************************
+ * PAGE D'EXPORT JSON : Génération manuelle d'un fichier JSON téléchargeable
+ *******************************************************************************************/
+add_action('admin_menu', function() {
+  add_menu_page('Cookie Manager', 'Gestion Cookies', 'manage_options', 'ccm-settings', 'ccm_render_settings_page', 'dashicons-shield-alt');
+  add_submenu_page('ccm-settings', 'Exporter JSON', 'Export JSON', 'manage_options', 'ccm-export-json', 'ccm_render_json_export_page');
+});
+
+function ccm_render_json_export_page() {
+  $config = get_option('ccm_config', []);
+  $texts = get_option('ccm_texts', []);
+  $json = json_encode([
+    'version' => $config['version'] ?? '1.0.0',
+    'categories' => $config['categories'] ?? [],
+    'texts' => $texts
+  ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+
+  $filename = 'cookie-config-' . date('Ymd-His') . '.json';
+  $upload_dir = wp_upload_dir();
+  $json_path = trailingslashit($upload_dir['basedir']) . $filename;
+  $json_url = trailingslashit($upload_dir['baseurl']) . $filename;
+
+  if (!file_exists($json_path)) {
+    file_put_contents($json_path, $json);
+  }
+
+  echo '<div class="wrap">';
+  echo '<h1>Exporter la configuration JSON</h1>';
+  echo '<p><a class="button button-primary" href="' . esc_url($json_url) . '" download>Télécharger le JSON</a></p>';
+  echo '<pre><code>' . esc_html($json) . '</code></pre>';
+  echo '</div>';
+}
+
+/*******************************************************************************************
+ * BACK-OFFICE : Page de configuration admin (bannière, scripts, hooks, version)
+ *******************************************************************************************/
+function ccm_render_settings_page() {
+  $config = get_option('ccm_config', [
+    'version' => '1.0.0',
+    'categories' => [
+      'analytics' => ['label' => 'Statistiques', 'scripts' => [], 'hooks' => []],
+      'marketing' => ['label' => 'Publicité', 'scripts' => [], 'hooks' => []]
+    ]
+  ]);
+  $texts = get_option('ccm_texts', [
+    'title' => 'Gestion des cookies',
+    'description' => 'Nous utilisons des cookies pour optimiser notre site et nos services.',
+    'accept' => 'Tout accepter',
+    'custom' => 'Personnaliser',
+    'refuse' => 'Tout refuser'
+  ]);
+
+  if (isset($_POST['ccm_submit'])) {
+    $config['version'] = sanitize_text_field($_POST['ccm_version']);
+    foreach ($config['categories'] as $key => &$cat) {
+      $cat['label'] = sanitize_text_field($_POST["label_$key"]);
+      $cat['scripts'] = array_filter(array_map('esc_url_raw', explode("\n", $_POST["scripts_$key"])));
+      $cat['hooks'] = array_filter(array_map('sanitize_text_field', explode("\n", $_POST["hooks_$key"])));
+    }
+    update_option('ccm_config', $config);
+
+    $texts = [
+      'title' => sanitize_text_field($_POST['text_title']),
+      'description' => sanitize_textarea_field($_POST['text_description']),
+      'accept' => sanitize_text_field($_POST['text_accept']),
+      'custom' => sanitize_text_field($_POST['text_custom']),
+      'refuse' => sanitize_text_field($_POST['text_refuse'])
+    ];
+    update_option('ccm_texts', $texts);
+
+    echo '<div class="updated"><p>Configuration mise à jour.</p></div>';
+  }
+  ?>
+  <div class="wrap">
+    <h1>Cookie Consent Manager</h1>
+    <form method="post">
+      <h2>Version de consentement</h2>
+      <input type="text" name="ccm_version" value="<?= esc_attr($config['version']) ?>" required />
+
+      <h2>Textes de la bannière</h2>
+      <label>Titre :</label><br>
+      <input type="text" name="text_title" value="<?= esc_attr($texts['title']) ?>" size="80" /><br><br>
+      <label>Description :</label><br>
+      <textarea name="text_description" rows="3" cols="80"><?= esc_textarea($texts['description']) ?></textarea><br><br>
+      <label>Bouton accepter :</label> <input type="text" name="text_accept" value="<?= esc_attr($texts['accept']) ?>" /><br>
+      <label>Bouton personnaliser :</label> <input type="text" name="text_custom" value="<?= esc_attr($texts['custom']) ?>" /><br>
+      <label>Bouton refuser :</label> <input type="text" name="text_refuse" value="<?= esc_attr($texts['refuse']) ?>" /><br><br>
+
+      <h2>Catégories de cookies</h2>
+      <?php foreach ($config['categories'] as $key => $cat): ?>
+        <h3><?= ucfirst($key) ?></h3>
+        <label>Nom affiché :</label><br>
+        <input type="text" name="label_<?= $key ?>" value="<?= esc_attr($cat['label']) ?>" /><br><br>
+        <label>Scripts à injecter (un par ligne) :</label><br>
+        <textarea name="scripts_<?= $key ?>" rows="5" cols="80"><?= esc_textarea(implode("\n", $cat['scripts'])) ?></textarea><br><br>
+        <label>Hooks PHP à exécuter (un par ligne) :</label><br>
+        <textarea name="hooks_<?= $key ?>" rows="3" cols="80"><?= esc_textarea(implode("\n", $cat['hooks'] ?? [])) ?></textarea><br><br>
+      <?php endforeach; ?>
+
+      <input type="submit" name="ccm_submit" value="Enregistrer" class="button button-primary" />
+    </form>
+  </div>
+  <?php
+}
